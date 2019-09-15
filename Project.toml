@@ -3,6 +3,12 @@ uuid = "e5cf005d-d64d-44d4-821e-2384bf4ace83"
 authors = ["Kenta Sato <bicycle1885@gmail.com>"]
 version = "0.1.0"
 
+[deps]
+LightGraphs = "093fc24a-ae57-5d10-9952-331d41423f4d"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SimpleWeightedGraphs = "47aef6b3-ad0c-573a-a1e2-d07658019622"
+StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
+
 [compat]
 julia = "1"
 
