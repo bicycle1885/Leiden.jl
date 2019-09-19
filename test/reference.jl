@@ -56,6 +56,12 @@ function move_nodes(graph::Graph, cardinality::Vector{Int},
     return partition
 end
 
+function leiden(adjmat::AbstractMatrix;
+                partition::Partition = create_singleton_partition(adjmat),
+                resolution::Float64 = 1.0)
+    return leiden(Graph(adjmat), partition = partition, resolution = resolution)
+end
+
 function leiden(graph::Graph;
                 partition::Partition = create_singleton_partition(graph),
                 resolution::Float64 = 1.0)
@@ -319,6 +325,10 @@ end
 
 function create_singleton_partition(graph::Graph)
     return [create_singleton_community(u) for u in vertices(graph)]
+end
+
+function create_singleton_partition(adjmat::AbstractMatrix)
+    return [create_singleton_community(u) for u in 1:size(adjmat, 1)]
 end
 
 function create_empty_community()
