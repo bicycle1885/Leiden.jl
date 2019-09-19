@@ -1,12 +1,14 @@
 module Leiden
 
-include("PartitionedGraphs.jl")
-
 using Random:
     shuffle
 using SparseArrays:
     sparse,
     spzeros
+using StatsFuns:
+    logsumexp
+
+include("PartitionedGraphs.jl")
 using .PartitionedGraphs:
     PartitionedGraph,
     Partition,
@@ -17,15 +19,11 @@ using .PartitionedGraphs:
     drop_empty_communities!,
     reset_partition!,
     create_singleton_partition
-using StatsFuns:
-    logsumexp
-
-initial_partition(A::AbstractMatrix) = create_singleton_partition(size(A, 1))
 
 function leiden(adjmat::AbstractMatrix{<:Real};
                 resolution::Real = 1.0,
                 randomness::Real = 0.01,
-                partition::Partition = initial_partition(adjmat))
+                partition::Partition = create_singleton_partition(size(adjmat, 1)))
     graph = PartitionedGraph(adjmat, partition = partition)
     return _leiden!(graph, Float64(resolution), Float64(randomness))
 end
@@ -34,7 +32,7 @@ function _leiden!(graph::PartitionedGraph, γ::Float64, θ::Float64)
     stack = Partition[]
     @label loop
     move_nodes_fast!(graph, γ)
-    @debug "nv = $(nv(graph)) nc = $(nc(graph)) H = $(H(graph, γ))"
+    @debug "nv = $(nv(graph)); nc = $(nc(graph)); H = $(H(graph, γ))"
     if nc(graph) != nv(graph)
         refined = refine_partition(graph, γ, θ)
         if nc(refined) == nv(refined)
@@ -80,13 +78,14 @@ function move_nodes_fast!(graph::PartitionedGraph, γ::Float64)
 
         # find the best community to which `u` belongs
         c_u = graph.cardinality[u]
+        weight_u = graph.edge_weight[u,u]
         src = dst = graph.membership[u]
         weight_src = total_weights[src]
         size_src = graph.size[src]
         maxgain = 0.0
         for i in connected
             i == src && continue
-            gain = total_weights[i] + graph.edge_weight[u,u] - weight_src - γ * (graph.size[i] - size_src + c_u) * c_u
+            gain = total_weights[i] + weight_u - weight_src - γ * (graph.size[i] - size_src + c_u) * c_u
             if gain > maxgain
                 dst = i
                 maxgain = gain
@@ -169,6 +168,7 @@ function refine_partition(graph::PartitionedGraph, γ::Float64, θ::Float64)
             end
 
             c_u = refined.cardinality[u]
+            weight_u = refined.edge_weight[u,u]
             src = refined.membership[u]
             weight_src = total_weights[src]
             size_src = refined.size[src]
@@ -176,7 +176,7 @@ function refine_partition(graph::PartitionedGraph, γ::Float64, θ::Float64)
             empty!(indexes)
             for i in communities
                 (i == src || !is_well_connected(u, i, between_weights)) && continue
-                gain = total_weights[i] + refined.edge_weight[u,u] - weight_src - γ * (refined.size[i] - size_src + c_u) * c_u
+                gain = total_weights[i] + weight_u - weight_src - γ * (refined.size[i] - size_src + c_u) * c_u
                 if gain ≥ 0
                     push!(logprobs, 1/θ * gain)
                     push!(indexes, i)
