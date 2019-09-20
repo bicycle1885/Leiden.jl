@@ -1,7 +1,8 @@
 module Leiden
 
 using Random:
-    shuffle
+    shuffle,
+    shuffle!
 using SparseArrays:
     sparse,
     spzeros
@@ -19,6 +20,10 @@ using .PartitionedGraphs:
     drop_empty_communities!,
     reset_partition!,
     create_singleton_partition
+
+
+# The Leiden algorithm
+# --------------------
 
 function leiden(adjmat::AbstractMatrix{<:Real};
                 resolution::Real = 1.0,
@@ -54,6 +59,80 @@ function _leiden!(graph::PartitionedGraph, γ::Float64, θ::Float64)
     @label finish
     push!(stack, graph.partition)
     return (quality = H(graph, γ), partition = flatten(stack))
+end
+
+
+# The Louvain algorithm
+# ---------------------
+
+function louvain(adjmat::AbstractMatrix{<:Real};
+                 resolution::Real = 1.0,
+                 partition::Partition = create_singleton_partition(size(adjmat, 1)))
+    graph = PartitionedGraph(adjmat, partition = partition)
+    return _louvain!(graph, Float64(resolution))
+end
+
+function _louvain!(graph::PartitionedGraph, γ::Float64)
+    stack = Partition[]
+    @label loop
+    move_nodes!(graph, γ)
+    @debug "nv = $(nv(graph)); nc = $(nc(graph)); H = $(H(graph, γ))"
+    push!(stack, graph.partition)
+    if nc(graph) != nv(graph)
+        graph = aggregate_graph(graph)
+        @goto loop
+    end
+    return (quality = H(graph, γ), partition = flatten(stack))
+end
+
+function move_nodes!(graph::PartitionedGraph, γ::Float64)
+    H_old = H(graph, γ)
+    nodes = collect(1:nv(graph))
+    connected = Int[]
+    total_weights = zeros(Float64, nc(graph))
+    @label loop
+    shuffle!(nodes)
+    for u in nodes
+        # compute total edge weights for each community
+        empty!(connected)
+        for v in neighbors(graph, u)
+            i = graph.membership[v]
+            if total_weights[i] == 0
+                push!(connected, i)
+            end
+            total_weights[i] += graph.edge_weight[u,v]
+        end
+
+        # find the best community to which `u` belongs
+        c_u = graph.cardinality[u]
+        weight_u = graph.edge_weight[u,u]
+        src = dst = graph.membership[u]
+        weight_src = total_weights[src]
+        size_src = graph.size[src]
+        maxgain = 0.0
+        for i in connected
+            i == src && continue
+            gain = total_weights[i] + weight_u - weight_src - γ * (graph.size[i] - size_src + c_u) * c_u
+            if gain > maxgain
+                dst = i
+                maxgain = gain
+            end
+            total_weights[i] = 0
+        end
+        total_weights[src] = 0
+        #@assert all(x == 0 for x in total_weights)
+
+        if src != dst
+            # move `u` to the best community and add its neighbors to the queue if needed
+            move_node!(graph, u => dst)
+        end
+    end
+    H_new = H(graph, γ)
+    if H_new > H_old
+        H_old = H_new
+        @goto loop
+    end
+    return drop_empty_communities!(graph)
 end
 
 function move_nodes_fast!(graph::PartitionedGraph, γ::Float64)

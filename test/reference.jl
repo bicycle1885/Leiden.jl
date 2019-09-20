@@ -14,7 +14,12 @@ using Random: shuffle
 const Graph = SimpleWeightedGraph{Int,Float64}
 const Partition = Vector{BitSet}
 
-# The Louvain algorithm.
+function louvain(adjmat::AbstractMatrix;
+                 partition::Partition = create_singleton_partition(adjmat),
+                 resolution::Float64 = 1.0)
+    return louvain(Graph(adjmat), partition = partition, resolution = resolution)
+end
+
 function louvain(graph::Graph;
                  partition::Partition = create_singleton_partition(graph),
                  resolution::Float64 = 1.0)
