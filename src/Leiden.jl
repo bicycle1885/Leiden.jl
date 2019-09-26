@@ -21,6 +21,7 @@ using .PartitionedGraphs:
     reset_partition!,
     create_singleton_partition
 
+include("karate.jl")
 
 # The Leiden algorithm
 # --------------------
