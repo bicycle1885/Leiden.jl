@@ -1,63 +1,48 @@
+# Partitioned Graphs
+# ==================
+
 module PartitionedGraphs
 
 using SparseArrays
 using LinearAlgebra
 
+# Nodes and communities are identified by a unique integer of Int, and edges
+# are weighted by a floating-point number of Float64.
 const Partition = Vector{Vector{Int}}
+const WeightVector = Vector{Float64}
 const WeightMatrix = SparseMatrixCSC{Float64,Int}
 
 struct PartitionedGraph
     # graph (immutable)
+    node_weight::WeightVector
     edge_weight::WeightMatrix
-    cardinality::Vector{Int}
 
     # partition (mutable)
     partition::Partition
-    size::Vector{Int}
+    size::WeightVector
     membership::Vector{Int}
 end
 
 function PartitionedGraph(
-        adjmat::AbstractMatrix{<:Real};
-        cardinality::Vector{Int} = create_unit_cardinality(nv(adjmat)),
-        partition::Partition = create_singleton_partition(nv(adjmat)),)
-    check_adjacent_matrix(adjmat)
-    n = nv(adjmat)
-    check_cardinality(n, cardinality)
+        node_weight::AbstractVector{<:Real},
+        edge_weight::AbstractMatrix{<:Real};
+        partition::Partition = create_singleton_partition(length(node_weight)),)
+    check_adjacent_matrix(edge_weight)
+    n = Base.size(node_weight, 1)
+    check_nodeweights(n, node_weight)
     check_partition(n, partition)
-    size = zeros(Int, length(partition))
+    size = zeros(length(partition))
     membership = zeros(Int, n)
     for (i, community) in enumerate(partition)
-        size[i] = weighted_sum(community, cardinality)
+        size[i] = weighted_sum(community, node_weight)
         membership[community] .= i
     end
-    return PartitionedGraph(adjmat, cardinality, partition, size, membership)
+    return PartitionedGraph(node_weight, edge_weight, partition, size, membership)
 end
 
-# number of vertices
-nv(A::AbstractMatrix) = size(A, 1)
-nv(graph::PartitionedGraph) = nv(graph.edge_weight)
-
-# number of communities
-nc(graph::PartitionedGraph) = length(graph.partition)
-
-# neighbors of node `u`
-function neighbors(graph::PartitionedGraph, u::Int)
-    A = graph.edge_weight
-    return @view A.rowval[A.colptr[u]:A.colptr[u+1]-1]
-end
-
-# communities connected with `u`
-function connected_communities(graph::PartitionedGraph, u::Int)
-    A = graph.total_weight
-    return @view A.rowval[A.colptr[u]:A.colptr[u+1]-1]
-end
-
-# generators of the default parameter
-create_unit_cardinality(n::Integer) = fill(1, n)
 create_singleton_partition(n::Integer) = [[i] for i in 1:n]
 
-function check_adjacent_matrix(adjmat::AbstractMatrix)
+function check_adjacent_matrix(adjmat::AbstractMatrix{<:Real})
     m, n = size(adjmat)
     if m != n
         throw(ArgumentError("invalid adjacent matrix: not a square matrix"))
@@ -80,12 +65,12 @@ function check_adjacent_matrix(adjmat::AbstractMatrix)
     return nothing
 end
 
-function check_cardinality(n::Integer, cardinality::Vector{Int})
-    if n != length(cardinality)
-        throw(ArgumentError("invalid cardinality: mismatching length"))
+function check_nodeweights(n::Integer, weights::AbstractVector{<:Real})
+    if n != length(weights)
+        throw(ArgumentError("invalid node weight: mismatching length"))
     end
-    if any(x ≤ 0 for x in cardinality)
-        throw(ArgumentError("invalid cardinality: found non-positive value"))
+    if any(x ≤ 0 for x in weights)
+        throw(ArgumentError("invalid node weight: found non-positive value"))
     end
     return nothing
 end
@@ -107,6 +92,35 @@ function check_partition(n::Integer, partition::Partition)
     return nothing
 end
 
+# number of vertices
+nv(graph::PartitionedGraph) = length(graph.node_weight)
+
+# number of communities
+nc(graph::PartitionedGraph) = length(graph.partition)
+
+# weighted degrees
+function degrees(graph::PartitionedGraph)
+    A = graph.edge_weight
+    n = nv(graph)
+    k = zeros(n)
+    for j in 1:n, r in A.colptr[j]:A.colptr[j+1]-1
+        k[j] += A.nzval[r]
+    end
+    return k
+end
+
+# neighbors of node `u`
+function neighbors(graph::PartitionedGraph, u::Int)
+    A = graph.edge_weight
+    return @view A.rowval[A.colptr[u]:A.colptr[u+1]-1]
+end
+
+# communities connected with `u`
+function connected_communities(graph::PartitionedGraph, u::Int)
+    A = graph.total_weight
+    return @view A.rowval[A.colptr[u]:A.colptr[u+1]-1]
+end
+
 # Move node `u` to `dst`.
 function move_node!(graph::PartitionedGraph, (u, dst)::Pair{Int,Int})
     @assert 1 ≤ dst ≤ nc(graph) + 1
@@ -115,7 +129,6 @@ function move_node!(graph::PartitionedGraph, (u, dst)::Pair{Int,Int})
         # no movement
         return graph
     end
-    cardinality = graph.cardinality[u]
     community_src = graph.partition[src]
     pos = findfirst(isequal(u), community_src)::Int
     if dst > nc(graph)
@@ -127,8 +140,9 @@ function move_node!(graph::PartitionedGraph, (u, dst)::Pair{Int,Int})
     end
     deleteat!(community_src, pos)
     push!(community_dst, u)
-    graph.size[src] -= cardinality
-    graph.size[dst] += cardinality
+    w = graph.node_weight[u]
+    graph.size[src] -= w
+    graph.size[dst] += w
     graph.membership[u] = dst
     return graph
 end
@@ -150,20 +164,25 @@ function drop_empty_communities!(graph::PartitionedGraph)
     return graph
 end
 
+# Normalize partition.
+function normalize!(graph::PartitionedGraph)
+     # TODO
+end
+
 function reset_partition!(graph::PartitionedGraph, partition::Partition)
     check_partition(nv(graph), partition)
     empty!(graph.partition)
     empty!(graph.size)
     for (i, community) in enumerate(partition)
         push!(graph.partition, copy(community))
-        push!(graph.size, weighted_sum(community, graph.cardinality))
+        push!(graph.size, weighted_sum(community, graph.node_weight))
         graph.membership[community] .= i
     end
     return graph
 end
 
-function weighted_sum(xs::Vector{Int}, weights::Vector{Int})
-    return isempty(xs) ? 0 : sum(weights[x] for x in xs)
+function weighted_sum(subset::Vector{Int}, weights::WeightVector)
+    return isempty(subset) ? 0.0 : sum(weights[i] for i in subset)
 end
 
 end
