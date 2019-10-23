@@ -1,15 +1,8 @@
-# Constant Potts Model
-# ====================
-
-struct CPM
-    resolution::Float64
-end
-
 """
     cpm(model::CPM, graph::PartitionedGraph)
 
 Compute the partition quality of the constant Potts model (CPM) for a
-partitioned graph `graph`.
+partitioned graph `graph` with resolution `γ`.
 
 The resolution parameter is expected to be between 0 and 1.
 

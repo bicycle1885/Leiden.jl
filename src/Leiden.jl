@@ -46,7 +46,7 @@ function leiden(adjmat::AbstractMatrix{<:Real};
     elseif model == :cpm
         # unit weight
         weight = ones(size(adjmat, 2))
-        η = γ #/ 2
+        η = γ
         scale = 1.0
     else
         throw(ArgumentError("unsupported model: '$(model)'"))
@@ -95,7 +95,7 @@ function louvain(adjmat::AbstractMatrix{<:Real};
     elseif model === :cpm
         # unit weight
         weight = ones(size(adjmat, 2))
-        η = γ #/ 2
+        η = γ
         scale = 1.0
     else
         throw(ArgumentError("unsupported model: '$(model)'"))
