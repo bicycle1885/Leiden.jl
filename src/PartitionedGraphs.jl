@@ -69,8 +69,8 @@ function check_nodeweights(n::Integer, weights::AbstractVector{<:Real})
     if n != length(weights)
         throw(ArgumentError("invalid node weight: mismatching length"))
     end
-    if any(x ≤ 0 for x in weights)
-        throw(ArgumentError("invalid node weight: found non-positive value"))
+    if any(x < 0 for x in weights)
+        throw(ArgumentError("invalid node weight: found negative value(s)"))
     end
     return nothing
 end
@@ -151,7 +151,6 @@ end
 function drop_empty_communities!(graph::PartitionedGraph)
     empty = Int[]
     for (i, community) in enumerate(graph.partition)
-        @assert isempty(community) == (graph.size[i] == 0)
         if isempty(community)
             push!(empty, i)
         end
