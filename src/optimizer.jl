@@ -164,8 +164,7 @@ function refine_partition(graph::PartitionedGraph, η::Float64, θ::Float64)
 
             empty!(connected)
             for v in neighbors(graph, u)
-                if v == u
-                    # self-loops have no effects
+                if v == u || v ∉ S
                     continue
                 end
                 i = σ[v]
