@@ -71,7 +71,7 @@ function move_nodes_fast!(graph::PartitionedGraph, η::Float64)
             if iszero(connected_weights[i])
                 push!(connected, i)
             end
-            connected_weights[i] += A[u,v] * 2
+            connected_weights[i] += A[v,u] * 2
         end
 
         dst = src = σ[u]
@@ -132,7 +132,7 @@ end
 function refine_partition(graph::PartitionedGraph, η::Float64, θ::Float64)
     k = graph.node_weight
     A = graph.edge_weight
-    refined = PartitionedGraph(k, A)
+    refined = PartitionedGraph(k, A, check = false)
     P = refined.partition
     σ = refined.membership
     a = refined.size
@@ -171,7 +171,7 @@ function refine_partition(graph::PartitionedGraph, η::Float64, θ::Float64)
                 if iszero(connected_weights[i])
                     push!(connected, i)
                 end
-                connected_weights[i] += A[u,v]
+                connected_weights[i] += A[v,u]
             end
 
             empty!(indexes)

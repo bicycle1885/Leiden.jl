@@ -26,11 +26,14 @@ end
 function PartitionedGraph(
         node_weight::AbstractVector{<:Real},
         edge_weight::AbstractMatrix{<:Real};
-        partition::Partition = create_singleton_partition(length(node_weight)),)
-    check_adjacent_matrix(edge_weight)
+        partition::Partition = create_singleton_partition(length(node_weight)),
+        check::Bool = true,)
     n = Base.size(node_weight, 1)
-    check_nodeweights(n, node_weight)
-    check_partition(n, partition)
+    if check
+        check_adjacent_matrix(edge_weight)
+        check_nodeweights(n, node_weight)
+        check_partition(n, partition)
+    end
     size = zeros(length(partition))
     membership = zeros(Int, n)
     for (i, community) in enumerate(partition)
